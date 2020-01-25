@@ -87,6 +87,13 @@ for(i in 1:K) {
 print(accuracy)
 print(best_mtry)
 print(best_ntree)
+pl <- rep(0,K)
+for(i in 1:K) {
+  pl[i] <- paste("(", best_mtry[i], ", ", best_ntree[i], ")")
+}
+
+#plot(1:5, accuracy, col="blue", pch=16)
+#text(1:5, accuracy, labels=accuracy)
 #---------------------------------------------------------------------------------
 rf_CV <- randomForest(Class~., data = Train)
 predict_RFCV <- predict(rf_CV, Test)

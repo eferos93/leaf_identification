@@ -5,3 +5,24 @@
 [1] 2000 2500 2000 2000 1000
 > mean(accuracy)
 [1] 0.8023529
+
+#CV decision tree
+
+double CV on Train set
+[1] 0.3829787 0.3617021 0.4255319 0.1702128 0.2127660
+[1] "CV avg accuracy:  0.31063829787234"
+[1] "CV best cp s: 0.02" "CV best cp s: 0.02" "CV best cp s: 0.02"
+[4] "CV best cp s: 0.02" "CV best cp s: 0.02"
+
+Final test on Test set
+[1] "Acc with cp =  0.02 :  0.466019417475728"
+
+
+[1] 0.6595745 0.5744681 0.7021277 0.7234043 0.7021277
+[1]  2  2  9 13  5
+[1]  500 1500 2500 1500  500
+[1] "Accuracy iwth m =  2  ntree =  500 :  0.766990291262136"
+[1] "Accuracy iwth m =  2  ntree =  1500 :  0.766990291262136"
+[1] "Accuracy iwth m =  9  ntree =  2500 :  0.786407766990291" <--- BEST
+[1] "Accuracy iwth m =  13  ntree =  1500 :  0.776699029126214"
+[1] "Accuracy iwth m =  5  ntree =  500 :  0.757281553398058"
