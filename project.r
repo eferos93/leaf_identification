@@ -1,6 +1,5 @@
 library(dplyr)
 library(rpart)
-library(rpart.plot)
 library(caret)
 library(e1071)
 library(caTools)
@@ -11,18 +10,19 @@ leaf <- read.csv("leaf.csv", header = FALSE,
                                "Lobedness", "Average_Intensity", "Average_Contrast",
                                "Smoothness", " Third_Moment", "Uniformity",
                                "Entropy"))
-leaf <- leaf[,-2]
-leaf$Class <- as.factor(leaf$Class)
 
-set.seed(58234)
-spl <- sample.split(leaf$Class, SplitRatio = 0.7)
-Train_dt <- subset(leaf, spl == TRUE)
-Test_dt <- subset(leaf, spl == FALSE)
+set.seed(65283)
+Train_dt <- read.csv("Train.csv", header = TRUE)
+Test_dt <- read.csv("Test.csv", header = TRUE)
+Train_dt <- Train_dt[,-1]
+Test_dt <- Test_dt[,-1]
+Train_dt$Class <- Train_dt$Class %>% as.factor
+Test_dt$Class <- Test_dt$Class %>% as.factor
 shuffled <- Train_dt[sample(nrow(Train_dt)),]
 
 K <- 5
 accuracy <- rep(0,K)
-best_cp <- rep(0,K)
+cps <- rep(0,K)
 for (i in 1:K) {
   # These indices indicate the interval of the test set
   indexes <- (((i-1) * round((1/K)*nrow(shuffled))) + 1):((i*round((1/K) * nrow(shuffled))))
@@ -40,21 +40,25 @@ for (i in 1:K) {
   
   train_dt <- train(Class~., data = train, method = "rpart", metric="Accuracy",
                     trControl = numFolds, tuneGrid = cpGrid)
-  best_cp[i] <- train_dt$bestTune$cp
+  cps[i] <- train_dt$bestTune$cp
   
-  tree <- rpart(Class ~ ., train, method="class", cp = best_cp[i])
+  tree <- rpart(Class ~ ., train, method="class", cp = cps[i])
   pred <- predict(tree, test[,-1],type="class")
   confusionM <- table(test$Class, pred)
   accuracy[i] <- sum(diag(confusionM))/sum(confusionM)
 }
 
-print(accuracy)
-print(paste("CV avg accuracy: ", mean(accuracy)))
-print(paste("CV best cp s:", best_cp))
 
+write(paste("CV mean:", mean(accuracy), "; CV sd:", sd(accuracy)), append = FALSE, file = "DT_result.txt")
+write(c("Accuracies ", accuracy), append = TRUE, file = "DT_result.txt")
+write(c("Best cps ", cps), append = TRUE, file = "DT_result.txt")
+
+accuracies <- rep(0, K)
 for(i in 1:K) {
-  rf <- rpart(Class~., data = Train_dt, method="class", cp = best_cp[i]) 
+  rf <- rpart(Class~., data = Train_dt, method="class", cp = cps[i]) 
   pred_dt <- predict(rf, Test_dt[,-1], type="class")
   cf_dt <- table(Test_dt$Class, pred_dt)
-  print(paste("Acc with cp = ", best_cp[i], ": ", sum(diag(cf_dt))/sum(cf_dt)))
+  accuracies[i] <- sum(diag(cf_dt))/sum(cf_dt)
+  write(paste("Acc with cp = ", cps[i], ": ", sum(diag(cf_dt))/sum(cf_dt)), append = TRUE, file = "DT_result.txt")
 }
+write(paste("Mean acc:", mean(accuracies), "sd:", sd(accuracies)))

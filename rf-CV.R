@@ -4,6 +4,7 @@ library(caret)
 library(mlbench)
 library(e1071)
 library(caTools)
+
 leaf <- read.csv("leaf.csv", header = FALSE,
                  col.names = c("Class", "Speciment_n°", "Eccentricity", "Aspect_Ratio",
                                "Elongation", "Solidity", "Stochastic_Convexity",
@@ -11,13 +12,15 @@ leaf <- read.csv("leaf.csv", header = FALSE,
                                "Lobedness", "Average_Intensity", "Average_Contrast",
                                "Smoothness", " Third_Moment", "Uniformity",
                                "Entropy"))
-leaf <- leaf[,-2]
-leaf$Class <- as.factor(leaf$Class)
 
-set.seed(4838649)
-spl <- sample.split(leaf$Class, SplitRatio = 0.7)
-Train_rf <- subset(leaf, spl == TRUE)
-Test_rf <- subset(leaf, spl == FALSE)
+set.seed(65283)
+
+Train_rf <- read.csv("Train.csv", header = TRUE)
+Test_rf <- read.csv("Test.csv", header = TRUE)
+Train_rf <- Train_rf[,-1]
+Test_rf <- Test_rf[,-1]
+Train_rf$Class <- Train_rf$Class %>% as.factor
+Test_rf$Class <- Test_rf$Class %>% as.factor
 shuffled <- Train_rf[sample(nrow(Train_rf)),]
 
 #custom RF
@@ -38,8 +41,8 @@ customRF$levels <- function(x) x$classes
 # train model-----------------------------------------------------------------------
 K <- 5
 accuracy=rep(0,K)
-best_mtry=rep(0,K)
-best_ntree=rep(0,K)
+mtry=rep(0,K)
+ntree=rep(0,K)
 n <- nrow(shuffled)
 for(i in 1:K) {
   indexes <- ((i-1)*round(1/K*n) + 1):(i*round(1/K*n))
@@ -54,25 +57,59 @@ for(i in 1:K) {
   tunegrid <- expand.grid(.ntree=c(500, 1000, 1500, 2000, 2500), .mtry=c(1:14))
   custom <- train(Class~., data=train_custom, method=customRF, metric="Accuracy",
                   tuneGrid=tunegrid, trControl=control)
-  best_mtry[i] <- custom$bestTune$mtry
-  best_ntree[i] <- custom$bestTune$ntree
-  randomF <- randomForest(Class~., data = train_custom, mtry = best_mtry[i],
-                          ntree = best_ntree[i])
+  mtry[i] <- custom$bestTune$mtry
+  ntree[i] <- custom$bestTune$ntree
+  randomF <- randomForest(Class~., data = train_custom, mtry = mtry[i],
+                          ntree = ntree[i])
   prediction <- predict(randomF, test_custom[,-1], type="class")
   confMat <- table(test_custom$Class, prediction)
   accuracy[i] <- sum(diag(confMat))/sum(confMat)
 }
-print( accuracy)
-print(best_mtry)
-print(best_ntree)
+avg_acc <- mean(accuracy)
+sd_acc <- sd(accuracy)
+write(paste("CV mean:", avg_acc, "; CV sd:", sd_acc), append = FALSE, file = "RF_result.txt")
+write(c("Accuracies ", accuracy), append = TRUE, file = "RF_result.txt")
+write(c("Best mtrys ", mtry), append = TRUE, file = "RF_result.txt")
+write(c("Best ntrees ", ntree), append = TRUE, file = "RF_result.txt")
 
-conf_matrixes <- rep(0, K)
+vect_of_matrix <- vector(mode = "list", length = K)
+accuracies <- rep(0, K)
+
 for(i in 1:K) {
-  rf <- randomForest(Class~., data = Train_rf, mtry = best_mtry[i],
-                     ntree = best_ntree[i])
+  rf <- randomForest(Class~., data = Train_rf, mtry = mtry[i],
+                     ntree = ntree[i])
   pr <- predict(rf, Test_rf[,-1], type="class")
-  conf_matrixes[i] <- confusionMatrix(data = pr, reference = Test_rf$Class)
-  print(paste("Accuracy with mtry = ", best_mtry[i], " ntree = ", best_ntree[i], ": ",
-              conf_matrixes[i]$overall[1]))
+  vect_of_matrix[[i]]<- table(pr, Test_rf$Class)
+  accuracies[i] <- sum(diag(vect_of_matrix[[i]]))/sum(vect_of_matrix[[i]])
+  write(paste("Accuracy with mtry = ", mtry[i], " ntree = ", ntree[i], ": ",
+              accuracies[i]), append = TRUE, file = "RF_result.txt")
+  
+}
+
+avg_acc_test <- accuracies %>% mean
+sd_acc_test <- accuracies %>%  sd
+classes <- leaf$Class %>% unique %>% sort %>% as.vector
+best_acc <- accuracies %>% max
+index <- match(best_acc, accuracies)
+conf_matrix_best <- vect_of_matrix[[index]]
+best_ntree <- ntree[index]
+best_mtry <- mtry[index]
+
+write(paste("Final test\n\tAvg:", avg_acc_test, " sd:", sd_acc_test), append = TRUE, file = "RF_result.txt")
+write(paste("Best Accuracy:", best_acc, "with parameters ntree =", best_ntree, "and mtry =", best_mtry),
+      append = TRUE, file = "RF_result.txt")
+
+for (j in 1:30) {
+  fp <- conf_matrix_best[j,-j] %>% sum
+  tn <- conf_matrix_best[-j,-j] %>% diag %>% sum
+  fpr <- fp/(fp+tn)
+  
+  fn <- conf_matrix_best[-j, j] %>% sum
+  tp <- conf_matrix_best[j,j] 
+  
+  fnr <- fn/(fn+tp)
+  
+  write(paste("Class", classes[j], "\n\tFP=", fp, "TN=", tn, "FPR=", fpr, "\n\tFN=", fn, "TP=", tp, "FNR=", fnr),
+        append = TRUE, file = "RF_result.txt")
   
 }
